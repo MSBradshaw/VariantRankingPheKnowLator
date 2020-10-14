@@ -87,14 +87,14 @@ def run_rwr(edge_list, start_nodes, target_nodes, node_mapping):
     return r_df
 
 
-def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False):
+def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False, intermediate_name):
     disease_gene_sets = {}
     for line in open(gene_sets, 'r'):
         row = line.strip().split('\t')
         # the first item is the disease common name, everything else is genes
         disease_gene_sets[row[0]] = row[1:]
 
-    node_mapping = create_numbered_edgelist(edgelist,edgelist + 'temp_numbered_rwr_edgelist.tsv')
+    node_mapping = create_numbered_edgelist(edgelist,intermediate_name)
     scores = {'500 count': [], '500 %': [], '100 count': [], '100 %': [], '50 count': [], '50 %': [], '25 count': [],
               '25 %': [], '10 count': [], '10 %': [], 'disease': []}
     num_iterations = 10
@@ -107,7 +107,7 @@ def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False):
             nodes = partition(disease_genes, 2)
             start, targets = nodes[0], nodes[1]
             r_df = None
-            r_df = run_rwr(edgelist + 'temp_numbered_rwr_edgelist.tsv', start, targets, node_mapping)
+            r_df = run_rwr(intermediate_name, start, targets, node_mapping)
 
             # Pheknowlater needs the non-gene nodes removed
             if is_pheknowlater:
@@ -138,7 +138,7 @@ def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False):
 # 'DisGeNET_genesets.txt'
 # 'pheknowlaterresults.csv'
 
-score_network(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]=='True')
+score_network(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]=='True', sys.argv[5])
 
 # score_network('pheknowlater_edgelist_gene_symbols_no_snps_clean.tsv', 'DisGeNET_genesets.txt', 'pheknowlater_results.csv', True)
 # score_network('string_edge_list_common_names.tsv', 'DisGeNET_genesets.txt', 'string_results.csv')
