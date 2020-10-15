@@ -4,6 +4,7 @@ import random
 import re
 import pandas as pd
 import numpy as np
+import pickle
 
 sys.path.append('pyrwr/')
 from pyrwr.rwr import RWR
@@ -87,7 +88,7 @@ def run_rwr(edge_list, start_nodes, target_nodes, node_mapping):
     return r_df
 
 
-def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False, intermediate_name):
+def score_network(edgelist, gene_sets, results_name, is_pheknowlater, intermediate_name):
     disease_gene_sets = {}
     for line in open(gene_sets, 'r'):
         row = line.strip().split('\t')
@@ -97,8 +98,9 @@ def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False, inte
     node_mapping = create_numbered_edgelist(edgelist,intermediate_name)
     scores = {'500 count': [], '500 %': [], '100 count': [], '100 %': [], '50 count': [], '50 %': [], '25 count': [],
               '25 %': [], '10 count': [], '10 %': [], 'disease': []}
-    num_iterations = 10
+    num_iterations = 1
     results_df = None
+    ranked_gene_names = {'gene':[],'rank':[],'disease':[],'is_target':[]}
     for disease in disease_gene_sets.keys():
         print(disease)
         for iteration in range(num_iterations):
@@ -113,7 +115,11 @@ def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False, inte
             if is_pheknowlater:
                 r_df['is_gene'] = [re.match('.*http.*', x) is None for x in r_df['node_name']]
                 r_df = r_df[r_df['is_gene'] == True]
-
+            pickle.dump(r_df, open('r_df.pickle', 'wb'))
+            ranked_gene_names['gene'] += list(r_df['node_name'])
+            ranked_gene_names['rank'] += list(range(r_df.shape[0]))
+            ranked_gene_names['disease'] += [disease] * r_df.shape[0]
+            ranked_gene_names['is_target'] += [x in targets for x in r_df['node_name']]
             # the top X we want scores for
             top_xs = [500, 100, 50, 25, 10, 0]
             for i in range(len(top_xs[:-1])):
@@ -124,6 +130,7 @@ def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False, inte
         single_df = pd.DataFrame(scores)
         # get the mean of each of the iterations for this disease
         means = single_df.mean(axis=0)
+        print(means)
         scores_mean_df = pd.DataFrame({col: [means[col]] for col in list(single_df.columns)[:-1]})
         scores_mean_df['disease'] = [disease]
         # add the means to the results dataframe
@@ -132,6 +139,7 @@ def score_network(edgelist, gene_sets, results_name, is_pheknowlater=False, inte
         else:
             results_df = pd.concat([results_df, scores_mean_df])
     results_df.to_csv(results_name)
+    pd.DataFrame(ranked_gene_names).to_csv(results_name + '_ranked_res.csv')
 
 
 # 'pheknowlater_edgelist_gene_symbols_no_snps_clean.tsv'
@@ -144,3 +152,8 @@ score_network(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]=='True', sys.ar
 # score_network('string_edge_list_common_names.tsv', 'DisGeNET_genesets.txt', 'string_results.csv')
 
 # string_edge_list_common_names.tsv DisGeNET_genesets.txt string_results.csv False
+
+# for each network
+# for each disease set
+# for each gene in the top 500 plot it's rank and K
+# plot it
