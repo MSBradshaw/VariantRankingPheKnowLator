@@ -1,0 +1,130 @@
+---
+title: "EDA of Data Snippet"
+author: "Connor Gibbs"
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{bm}
+   - \usepackage{mathtools}
+   - \usepackage{braket}
+date: "10/02/2020"
+output: 
+   bookdown::pdf_document2:
+    fig_caption: yes
+    toc: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(fig.width=6, fig.height=3, fig.align="center") 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+# dependencies
+library(tidyverse)
+library(janitor)
+library(jsonlite)
+library(dtplyr)
+library(igraph)
+library(ggnetwork)
+```
+
+# Integers and Node Labels
+
+The integer data consists of three columns: subject, predicate, and object. The three columns allow for the specification of a property graph where subject and object are nodes of the graph and the predicate specifies the value of the edge between the nodes.
+
+The node label data consists of four columns: node_id, label, description/definition, and synonym. The node_id seems to link the integer data to the node label data. The node_id seems to be the unique identifier for the subject and object from the integer data, providing further details on these nodes. 
+
+```{r}
+# integers
+int_map <- './hpo-gene/src/data/PheKnowLator_Instance_RelationsOnly_NotClosed_NoOWL_Triples_Integers.txt' %>%
+  read_tsv() %>%
+  clean_names()
+head(int_map)
+
+# node labels
+node_labels <- './hpo-gene/src/data/PheKnowLator_Instance_RelationsOnly_NotClosed_NoOWL_NodeLabels.txt' %>%
+  read_tsv() %>%
+  clean_names()
+head(node_labels)
+
+# identifiers
+ids <- './hpo-gene/src/data/PheKnowLator_Instance_RelationsOnly_NotClosed_NoOWL_Triples_Identifiers.txt' %>%
+  read_tsv() %>%
+  clean_names()
+head(ids)
+
+json_map <- './hpo-gene/src/data/PheKnowLator_Instance_RelationsOnly_NotClosed_NoOWL_Triples_Integer_Identifier_Map.json' %>%
+  read_json()
+head(json_map[[1]])
+
+json_map <- data.frame(origin = names(json_map), values = unlist(unname(json_map)))
+
+```
+
+Let's combine these two data sets into one, removing the old data sets to preserve memory.
+
+```{r, include=FALSE}
+prop_graph <- int_map %>%
+  left_join(., node_labels, by = c('subject' = 'node_id')) %>%
+  rename_at(., vars(label, description_definition, synonym), ~str_c('subject.', .x)) %>%
+  left_join(., node_labels, by = c('object' = 'node_id')) %>%
+  rename_at(., vars(label, description_definition, synonym), ~str_c('object.', .x)) %>%
+  select(., starts_with('subject'), 'predicate', starts_with('object'))
+
+rm(int_map, node_labels)
+```
+
+Now, let's see how many edges there are for nodes with the top ten most edges.
+
+```{r}
+subject_counts <- prop_graph %>%
+  lazy_dt() %>%
+  group_by(., subject) %>%
+  summarize(., n = n()) %>%
+  ungroup() %>%
+  arrange(., desc(n)) %>%
+  as_tibble()
+
+subject_counts %>%
+  slice(., 1:10) %>%
+  left_join(., distinct(prop_graph, subject, subject.label)) %>%
+  select(., subject, subject.label, n)
+```
+
+To get sense of the graphical structure, let's consider twenty subjects with relatively few edges:
+
+```{r, cache=TRUE}
+topn_graph <- prop_graph %>%
+  filter(., subject %in% subject_counts$subject[100000:100020]) %>%
+  arrange(., object, predicate)
+
+net <- topn_graph %>%
+  select(., from = subject, to = object) %>%
+  graph.data.frame(., directed = FALSE)
+
+ggplot(net, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(color = "grey50") +
+  geom_nodes() +
+  theme_blank()
+```
+
+Now, let's consider the solution to the diffusion kernel:
+
+```{r}
+library(Matrix)
+A <- as_adjacency_matrix(net)
+D <- diag(colSums(A))
+W <- D - A
+expm(-0.05*W)[1:5,1:5]
+```
+
+
+
+
+
+
+
+
+
+
+

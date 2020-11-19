@@ -1,0 +1,76 @@
+---
+title: "MuxViz Files"
+author: "Connor Gibbs"
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{bm}
+   - \usepackage{mathtools}
+   - \usepackage{braket}
+date: "11/04/2020"
+output: 
+   bookdown::pdf_document2:
+    fig_caption: yes
+    toc: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(fig.width=6, fig.height=3, fig.align="center") 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+# dependencies
+library(tidyverse)
+library(janitor)
+library(jsonlite)
+```
+
+# Data
+
+I will first read in the data and get rid of any adjacency which is not gene to gene.
+
+```{r}
+trip_ids <- './hpo-gene/src/data/PheKnowLator_Instance_RelationsOnly_NotClosed_NoOWL_Triples_Identifiers.txt' %>%
+  # read data
+  read_tsv() %>%
+  clean_names() %>%
+  # create gene indicator for subjects and objects 
+  mutate(., across(.cols = c(subject, object), .fns = ~str_detect(.x, 'gene/'), .names = '{.col}_gene'),
+         across(.cols = c(subject, object), .fns = ~str_detect(.x, 'obo/'), .names = '{.col}_obo'))
+```
+
+Then I will only keep genes and try to reduce the amount of data for a visualization.
+
+```{r}
+trip_ids <- trip_ids %>%
+  filter(., subject_gene, (object_gene | object_obo)) %>%
+  group_by(., predicate) %>%
+  sample_frac(., 0.001) %>%
+  ungroup() %>%
+  mutate(., across(.cols = c(subject, predicate, object), .fns = ~basename(.x), .names = '{.col}_abbr'))
+
+layout <- data.frame(node = c(trip_ids$subject_abbr, trip_ids$object_abbr)) %>%
+  distinct(., node) %>%
+  mutate(., nodeID = row_number()) %>%
+  select(., nodeID, nodeLabel = node)
+write_delim(layout, file = './hpo-gene/src/data/muxviz-layout-subGeneobjGeneObo.txt')
+
+layers <- data.frame(layer = trip_ids$predicate_abbr) %>%
+  distinct(., layer) %>%
+  mutate(., layerID = row_number()) %>%
+  select(., layerID, layerLabel = layer)
+write_delim(layers, file = './hpo-gene/src/data/muxviz-layers-subGeneobjGeneObo.txt')
+
+edges <- trip_ids %>%
+  select(., subject_abbr, predicate_abbr, object_abbr) %>%
+  # get parent node and layer
+  left_join(., select(layout, subject_abbr = nodeLabel, node1 = nodeID)) %>%
+  left_join(., select(layers, predicate_abbr = layerLabel, layer1 = layerID)) %>%
+  # get child node and layer
+  left_join(., select(layout, object_abbr = nodeLabel, node2 = nodeID)) %>%
+  left_join(., select(layers, predicate_abbr = layerLabel, layer2 = layerID)) %>%
+  # create weight
+  mutate(., wgt = 1L) %>%
+  select(., node1:wgt)
+write_delim(edges, file = './hpo-gene/src/data/muxviz-subGeneobjGeneObo.edges', col_names = FALSE)
+```
