@@ -59,6 +59,16 @@ head(json_map[[1]])
 
 json_map <- data.frame(origin = names(json_map), values = unlist(unname(json_map)))
 
+int_map <- int_map %>%
+  pivot_longer(., cols = everything(), names_to = 'type', values_to = 'tnodeID')
+  
+my_map <- ids %>%
+  pivot_longer(., cols = everything(), names_to = 'type', values_to = 'tnodeLabel') %>%
+  add_column(., tnodeID = int_map$tnodeID) %>%
+  mutate(., nodeLabel = basename(tnodeLabel)) %>%
+  select(., nodeLabel, tnodeLabel, tnodeID) %>%
+  distinct()
+write_csv(my_map, 'hpo-gene/src/data/full_set/map2full.csv')
 ```
 
 Let's combine these two data sets into one, removing the old data sets to preserve memory.

@@ -7,7 +7,53 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(fig.width=6, fig.height=3, fig.align="center") 
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+# dependencies
+library(tidyverse)
 ```
 
-## R Markdown
+# Mutlilayer Knowledge Graph
+
+I'll write the necessary components to files for reference.
+
+```{r}
+source('./hpo-gene/fns/inhouse_fns.R')
+#  create files for multi-layer network
+mln_files(triples_ids = './hpo-gene/src/data/PheKnowLator_Instance_RelationsOnly_NotClosed_NoOWL_Triples_Identifiers.txt',
+          dir = './hpo-gene/src/data/full_set')
+```
+
+I'll then build the network. Currently, there are no coupling edges.
+
+```{r}
+library(igraph)
+library(dtplyr)
+
+config <- read_file('./hpo-gene/src/data/full_set/config.txt') %>%
+  str_split(., ';', simplify = TRUE)
+
+graph_desc <- config %>%
+  map(., ~read_table2(.x, col_names = TRUE)) %>%
+  set_names(., c('edges', 'layers', 'layout'))
+```
+
+Let's take a look at the training data set.
+
+```{r}
+my_map <- read_csv('hpo-gene/src/data/full_set/map2full.csv')
+mike_map <- read_tsv('gene_id2symbol.txt', col_names = FALSE) %>%
+  set_names(., c('tnodeID', 'nodeLabel'))
+disease_genes <- read_tsv('./DisGeNET_genesets.txt', col_names = FALSE) %>%
+  pivot_longer(cols = -X1, values_to = 'nodeLabel') %>%
+  select(disease = X1, nodeLabel) %>%
+  left_join(distinct(mike_map, nodeLabel, .keep_all = TRUE)) %>%
+  left_join(distinct(select(my_map, tnodeID, cnodeLabel = nodeLabel))) %>%
+  select(disease, nodeSymbol = nodeLabel, nodeLabel = cnodeLabel) %>%
+  filter(., !is.na(nodeLabel))
+
+rm(mike_map, my_map)
+```
 
