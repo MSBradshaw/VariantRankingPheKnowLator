@@ -34,3 +34,4 @@ with open('sIMB_and_random_shuffle_disease_set.tsv','w') as out:
         out.write(item)
         if i != len(shuffled_genes) - 1:
             out.write('\t')
+
