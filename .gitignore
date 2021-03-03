@@ -2,3 +2,16 @@
 *.csv
 Edgelists/*
 *.tsv
+.DS_Store
+.idea/
+Data/
+*.pickle
+*.csv
+*.png
+Edgelists/
+Embeddings/*.txt
+Embeddings/*.emb
+edgelists.zip
+embeddings.zip
+__pycache__/
+Results.zip
