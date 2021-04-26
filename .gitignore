@@ -15,3 +15,5 @@ edgelists.zip
 embeddings.zip
 __pycache__/
 Results.zip
+RankingTools/Results/
+Markov_Coms_Example/
